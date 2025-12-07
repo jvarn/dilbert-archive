@@ -49,6 +49,18 @@ Preview the production build:
 npm run preview
 ```
 
+## Deployment
+
+This project is deployed to GitHub Pages at [https://dilbert-archive.github.io](https://dilbert-archive.github.io).
+
+The deployment is automated via GitHub Actions. When you push to the `main` branch, the workflow will:
+1. Build the production bundle
+2. Deploy it to GitHub Pages
+
+To deploy manually:
+1. Build the project: `npm run build`
+2. The `dist/` folder contains the production-ready files
+
 ## Features
 
 - **Full-text search**: Search through comic titles and transcripts with debounced input
