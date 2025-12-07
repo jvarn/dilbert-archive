@@ -1,2 +1,5 @@
-
 .DS_Store
+images/
+node_modules/
+dist/
+.vite/

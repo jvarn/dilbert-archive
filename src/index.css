@@ -1,0 +1,141 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+/* React DatePicker custom styles */
+.react-datepicker-wrapper {
+  width: 100%;
+}
+
+.react-datepicker__input-container input {
+  width: 100%;
+  background-color: transparent;
+}
+
+.react-datepicker {
+  font-family: inherit;
+  border: 1px solid #e5e7eb;
+  border-radius: 0.5rem;
+  box-shadow: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+}
+
+.react-datepicker {
+  background-color: white;
+}
+
+.dark .react-datepicker {
+  background-color: #1f2937;
+  border-color: #374151;
+}
+
+.react-datepicker__header {
+  background-color: #3b82f6;
+  border-bottom: none;
+  border-top-left-radius: 0.5rem;
+  border-top-right-radius: 0.5rem;
+  padding-top: 0.75rem;
+}
+
+.dark .react-datepicker__header {
+  background-color: #2563eb;
+}
+
+.react-datepicker__current-month {
+  color: white;
+  font-weight: 600;
+  padding-bottom: 0.5rem;
+}
+
+.react-datepicker__day-name {
+  color: rgba(255, 255, 255, 0.9);
+  font-weight: 500;
+}
+
+.react-datepicker__day {
+  color: #111827;
+}
+
+.dark .react-datepicker__day {
+  color: #f3f4f6;
+}
+
+.react-datepicker__day--selected,
+.react-datepicker__day--keyboard-selected {
+  background-color: #3b82f6;
+  border-radius: 0.375rem;
+  color: white;
+}
+
+.dark .react-datepicker__day--selected,
+.dark .react-datepicker__day--keyboard-selected {
+  background-color: #2563eb;
+}
+
+.react-datepicker__day:hover {
+  border-radius: 0.375rem;
+  background-color: #dbeafe;
+}
+
+.dark .react-datepicker__day:hover {
+  background-color: #1e40af;
+}
+
+.react-datepicker__day--today {
+  font-weight: 600;
+  color: #3b82f6;
+}
+
+.dark .react-datepicker__day--today {
+  color: #60a5fa;
+}
+
+.react-datepicker__navigation {
+  top: 0.75rem;
+}
+
+.react-datepicker__navigation-icon::before {
+  border-color: white;
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: #f1f1f1;
+}
+
+::-webkit-scrollbar-thumb {
+  background: #888;
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: #555;
+}
+
+/* Smooth transitions */
+* {
+  transition-property: color, background-color, border-color, text-decoration-color, fill, stroke, opacity, box-shadow, transform;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 150ms;
+}
+
+/* Fade in animation */
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(-10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.animate-fadeIn {
+  animation: fadeIn 0.3s ease-out;
+}
+

@@ -4,15 +4,67 @@ This repository contains accessible text transcripts of *Dilbert* comics spannin
 
 ## Project Structure
 
-- **dilbert_comics_transcripts.json**: The original JSON file containing comic metadata and transcripts.
-- **dilbert_comics_transcripts_aria.html**: An HTML file including the JSON data with a quick full-text search function and date selector designed to be accessible with screen readers using ARIA tags.
-- **scripts**: Python script used to generate a one-page HTML file from the JSON data.
+- **dilbert_comics_transcripts.json**: The JSON file containing comic metadata and transcripts.
+- **src/**: React application source code built with Vite, React, and Tailwind CSS.
+- **public/**: Public assets including the JSON data and images.
+- **images/**: Local comic images organized by year (1989-2023).
+
+## Getting Started
+
+### Prerequisites
+
+- Node.js (v16 or higher)
+- npm or yarn
+
+### Installation
+
+1. Clone the repository
+2. Install dependencies:
+   ```bash
+   npm install
+   ```
+
+### Development
+
+Start the development server:
+```bash
+npm run dev
+```
+
+The application will be available at `http://localhost:5173`
+
+### Build
+
+Build for production:
+```bash
+npm run build
+```
+
+The built files will be in the `dist/` directory.
+
+### Preview Production Build
+
+Preview the production build:
+```bash
+npm run preview
+```
+
+## Features
+
+- **Full-text search**: Search through comic titles and transcripts with debounced input
+- **Date picker**: Navigate to specific comics by date
+- **Keyboard navigation**: Use arrow keys (← →) to navigate between comics
+- **Image source toggle**: Switch between local images and original web archive URLs
+- **Collapsible transcripts**: Transcripts are hidden by default and can be toggled
+- **Responsive design**: Works on desktop and mobile devices
+- **Accessibility**: ARIA labels, semantic HTML, and keyboard navigation support
 
 ## Accessibility
 
 This project is optimized for accessibility:
 - **ARIA Roles**: ARIA roles and landmarks are added to provide context to each comic transcript, ensuring smooth navigation for screen readers.
-- **Time Tags**: Each comic’s date is marked using the `<time>` tag, making it clear when each comic was originally published.
+- **Time Tags**: Each comic's date is marked using the `<time>` tag, making it clear when each comic was originally published.
+- **Keyboard Navigation**: Full keyboard support for navigation and interaction.
 - **Original Image Links**: Links to the original images are included for reference through Archive.org, as the website hosting the comics is no longer available.
 
 ## Sample JSON Structure
