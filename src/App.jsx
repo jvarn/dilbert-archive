@@ -9,13 +9,17 @@ import DarkModeToggle from './components/DarkModeToggle'
 import SettingsModal from './components/SettingsModal'
 
 function App() {
-  const [comicsData, setComicsData] = useState(null)
+  const [comicsIndex, setComicsIndex] = useState(null)
+  const [comicsData, setComicsData] = useState({}) // Object keyed by year: { "1989": {...}, "1990": {...} }
   const [currentDate, setCurrentDate] = useState(null)
   const [searchTerm, setSearchTerm] = useState('')
   const [debouncedSearchTerm, setDebouncedSearchTerm] = useState('')
   const [searchResults, setSearchResults] = useState([])
   const [loading, setLoading] = useState(true)
+  const [loadingStage, setLoadingStage] = useState(null) // "index" | "year" | "search" | null
+  const [loadingYear, setLoadingYear] = useState(null) // Track which year is being loaded
   const [error, setError] = useState(null)
+  const [loadedYears, setLoadedYears] = useState(new Set())
   const [useLocalImages, setUseLocalImages] = useState(() => {
     // Load preference from localStorage, default to false (use original URLs)
     if (typeof window !== 'undefined') {
@@ -26,6 +30,29 @@ function App() {
   })
   const [isSettingsOpen, setIsSettingsOpen] = useState(false)
 
+  const baseUrl = import.meta.env.BASE_URL
+
+  // Helper function to load a year's data
+  const loadYearData = useCallback(async (year) => {
+    if (loadedYears.has(year) || comicsData[year]) {
+      return comicsData[year] || null
+    }
+
+    try {
+      const response = await fetch(`${baseUrl}comics-data/${year}.json`)
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`)
+      }
+      const data = await response.json()
+      setComicsData(prev => ({ ...prev, [year]: data }))
+      setLoadedYears(prev => new Set([...prev, year]))
+      return data
+    } catch (error) {
+      console.error(`Error loading year ${year}:`, error)
+      throw error
+    }
+  }, [baseUrl, loadedYears, comicsData])
+
   // Debounce search term - wait 500ms after last keystroke
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -35,86 +62,276 @@ function App() {
     return () => clearTimeout(timer)
   }, [searchTerm])
 
-  // Load comics data from JSON file
+  // Stage 1: Load index
+  // Stage 2: Determine target year
+  // Stage 3: Load target year
+  // Stage 4: Initialize currentDate
   useEffect(() => {
-    // Use Vite's base URL to support flexible deployment paths
-    const baseUrl = import.meta.env.BASE_URL
-    const jsonPath = `${baseUrl}dilbert_comics_transcripts.json`
+    // Stage 1: Load index
+    setLoadingStage('index')
+    setLoading(true)
     
-    fetch(jsonPath)
+    fetch(`${baseUrl}comics-index.json`)
       .then(response => {
         if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status} - Could not find ${jsonPath}`)
+          throw new Error(`HTTP error! status: ${response.status} - Could not find comics-index.json`)
         }
-        return response.text().then(text => {
-          try {
-            return JSON.parse(text)
-          } catch (parseError) {
-            throw new Error(`JSON parse error: ${parseError.message}`)
-          }
-        })
+        return response.json()
       })
-      .then(data => {
-        setComicsData(data)
-        setLoading(false)
+      .then(index => {
+        setComicsIndex(index)
         
-        // Initialize date from URL parameter or use random/default
+        // Stage 2: Determine target year from URL or use latest
         const urlParams = new URLSearchParams(window.location.search)
         const dateParam = urlParams.get('date')
+        const targetYear = dateParam ? dateParam.split('-')[0] : index.latestYear
         
-        if (dateParam && data[dateParam]) {
-          setCurrentDate(dateParam)
-        } else {
-          // Default to last comic date or random
-          const dates = Object.keys(data).sort()
-          const defaultDate = dates[dates.length - 1] // Last comic
-          setCurrentDate(defaultDate)
-          window.history.replaceState({}, '', `?date=${defaultDate}`)
-        }
+        // Stage 3: Load target year
+        setLoadingStage('year')
+        setLoadingYear(targetYear)
+        
+        return fetch(`${baseUrl}comics-data/${targetYear}.json`)
+          .then(response => {
+            if (!response.ok) {
+              throw new Error(`HTTP error! status: ${response.status} - Could not find ${targetYear}.json`)
+            }
+            return response.json()
+          })
+          .then(yearData => {
+            setComicsData({ [targetYear]: yearData })
+            setLoadedYears(new Set([targetYear]))
+            
+            // Stage 4: Initialize currentDate
+            if (dateParam && yearData[dateParam]) {
+              setCurrentDate(dateParam)
+            } else {
+              // Default to last comic date in the loaded year or overall latest
+              const dates = Object.keys(yearData).sort()
+              const defaultDate = dates.length > 0 ? dates[dates.length - 1] : 
+                (index.dates.length > 0 ? index.dates[index.dates.length - 1].date : null)
+              if (defaultDate) {
+                setCurrentDate(defaultDate)
+                window.history.replaceState({}, '', `?date=${defaultDate}`)
+              }
+            }
+            
+            setLoading(false)
+            setLoadingStage(null)
+            setLoadingYear(null)
+          })
       })
       .catch(error => {
         console.error('Error loading comics data:', error)
-        console.error('Error details:', error.message)
         setError(error.message)
         setLoading(false)
+        setLoadingStage(null)
+        setLoadingYear(null)
       })
-  }, [])
+  }, [baseUrl])
+
+  // Lazy load adjacent years when navigating
+  useEffect(() => {
+    if (!currentDate || !comicsIndex) return
+
+    const currentYear = currentDate.split('-')[0]
+    const yearNum = parseInt(currentYear)
+    
+    // Preload adjacent years
+    const yearsToLoad = [
+      (yearNum - 1).toString(),
+      (yearNum + 1).toString()
+    ].filter(y => comicsIndex.years.includes(y) && !loadedYears.has(y) && !comicsData[y])
+
+    yearsToLoad.forEach(year => {
+      loadYearData(year).catch(err => {
+        console.warn(`Failed to preload year ${year}:`, err)
+      })
+    })
+  }, [currentDate, comicsIndex, loadedYears, comicsData, loadYearData])
 
   // Handle browser back/forward buttons
   useEffect(() => {
-    const handlePopState = () => {
+    const handlePopState = async () => {
       const urlParams = new URLSearchParams(window.location.search)
       const dateParam = urlParams.get('date')
-      if (dateParam && comicsData && comicsData[dateParam]) {
+      
+      if (!dateParam || !comicsIndex) return
+      
+      const year = dateParam.split('-')[0]
+      
+      // Load year if needed
+      if (!comicsData[year]) {
+        setLoadingStage('year')
+        setLoadingYear(year)
+        try {
+          await loadYearData(year)
+        } catch (error) {
+          console.error('Error loading year for popstate:', error)
+          setError(error.message)
+        } finally {
+          setLoadingStage(null)
+          setLoadingYear(null)
+        }
+      }
+      
+      // Check if date exists in loaded data
+      if (comicsData[year]?.[dateParam]) {
         setCurrentDate(dateParam)
       }
     }
 
     window.addEventListener('popstate', handlePopState)
     return () => window.removeEventListener('popstate', handlePopState)
-  }, [comicsData])
+  }, [comicsIndex, comicsData, loadYearData])
 
-  // Handle search (using debounced search term)
+  // Handle search (two-phase approach)
   useEffect(() => {
-    if (!comicsData || !debouncedSearchTerm) {
+    if (!comicsIndex || !debouncedSearchTerm) {
       setSearchResults([])
       return
     }
 
     const term = debouncedSearchTerm.toLowerCase()
-    const results = []
+    
+    // Phase 1: Search index for title matches
+    const titleMatchingDates = comicsIndex.dates.filter(item => {
+      return item.title.toLowerCase().includes(term)
+    })
 
-    for (const key in comicsData) {
-      const comic = comicsData[key]
-      let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
-      transcript = transcript.replace(/\s*\n\s*/g, ' ')
-
-      if (
-        comic.title.toLowerCase().includes(term) ||
-        transcript.includes(term)
-      ) {
-        let excerpt = ''
+    // Phase 2: Search already-loaded years for transcript matches
+    const transcriptMatches = []
+    Object.keys(comicsData).forEach(year => {
+      const yearData = comicsData[year]
+      Object.keys(yearData).forEach(date => {
+        const comic = yearData[date]
+        if (!comic) return
         
+        let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
+        transcript = transcript.replace(/\s*\n\s*/g, ' ')
+        
+        // Check if already in title matches to avoid duplicates
+        const alreadyMatched = titleMatchingDates.some(item => item.date === date)
+        if (!alreadyMatched && transcript.includes(term)) {
+          transcriptMatches.push({ date, year, comic })
+        }
+      })
+    })
+
+    // Phase 3: Identify unique years from title matches that need loading
+    const yearsToLoad = new Set(
+      titleMatchingDates
+        .map(item => item.year)
+        .filter(year => !comicsData[year])
+    )
+    
+    // Phase 4: Load missing year files for title matches
+    if (yearsToLoad.size > 0) {
+      setLoadingStage('search')
+      Promise.all(
+        Array.from(yearsToLoad).map(year => loadYearData(year))
+      )
+        .then(loadedYearDataArray => {
+          // Build a map of loaded years for easy access
+          const loadedYearsMap = {}
+          Array.from(yearsToLoad).forEach((year, index) => {
+            loadedYearsMap[year] = loadedYearDataArray[index]
+          })
+          
+          // Update comicsData with loaded years
+          setComicsData(currentComicsData => ({
+            ...currentComicsData,
+            ...loadedYearsMap
+          }))
+          
+          // Phase 5: Build results from both title and transcript matches
+          // Merge loaded years with current data for building results
+          const mergedData = { ...comicsData, ...loadedYearsMap }
+          const results = []
+          const processedDates = new Set()
+          
+          // Add title matches
+          titleMatchingDates.forEach(item => {
+            const yearData = mergedData[item.year]
+            if (!yearData) return
+            
+            const comic = yearData[item.date]
+            if (!comic) return
+            
+            let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
+            transcript = transcript.replace(/\s*\n\s*/g, ' ')
+            
+            let excerpt = ''
+            if (transcript.includes(term)) {
+              // Transcript also matches
+              const index = transcript.indexOf(term)
+              const start = Math.max(0, index - 25)
+              const end = Math.min(transcript.length, index + term.length + 25)
+              excerpt = transcript.slice(start, end)
+              if (start > 0) excerpt = '...' + excerpt
+              if (end < transcript.length) excerpt += '...'
+            } else {
+              // Title match only
+              excerpt = transcript.slice(0, 50) + (transcript.length > 50 ? '...' : '')
+            }
+            
+            results.push({
+              date: item.date,
+              comic,
+              excerpt
+            })
+            processedDates.add(item.date)
+          })
+          
+          // Add transcript-only matches from loaded years
+          transcriptMatches.forEach(({ date, comic }) => {
+            if (processedDates.has(date)) return
+            
+            let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
+            transcript = transcript.replace(/\s*\n\s*/g, ' ')
+            
+            let excerpt = ''
+            const index = transcript.indexOf(term)
+            const start = Math.max(0, index - 25)
+            const end = Math.min(transcript.length, index + term.length + 25)
+            excerpt = transcript.slice(start, end)
+            if (start > 0) excerpt = '...' + excerpt
+            if (end < transcript.length) excerpt += '...'
+            
+            results.push({
+              date,
+              comic,
+              excerpt
+            })
+          })
+          
+          // Sort results by date (newest first)
+          results.sort((a, b) => b.date.localeCompare(a.date))
+          
+          setSearchResults(results)
+          setLoadingStage(null)
+        })
+        .catch(error => {
+          console.error('Error loading years for search:', error)
+          setError(error.message)
+          setLoadingStage(null)
+        })
+    } else {
+      // No years to load, just build results from what we have
+      const results = []
+      const processedDates = new Set()
+      
+      // Add title matches
+      titleMatchingDates.forEach(item => {
+        const yearData = comicsData[item.year]
+        if (!yearData) return
+        
+        const comic = yearData[item.date]
+        if (!comic) return
+        
+        let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
+        transcript = transcript.replace(/\s*\n\s*/g, ' ')
+        
+        let excerpt = ''
         if (transcript.includes(term)) {
           const index = transcript.indexOf(term)
           const start = Math.max(0, index - 25)
@@ -123,25 +340,51 @@ function App() {
           if (start > 0) excerpt = '...' + excerpt
           if (end < transcript.length) excerpt += '...'
         } else {
-          excerpt = transcript.slice(0, 50) + '...'
+          excerpt = transcript.slice(0, 50) + (transcript.length > 50 ? '...' : '')
         }
-
+        
         results.push({
-          date: key,
+          date: item.date,
           comic,
           excerpt
         })
-      }
+        processedDates.add(item.date)
+      })
+      
+      // Add transcript-only matches
+      transcriptMatches.forEach(({ date, comic }) => {
+        if (processedDates.has(date)) return
+        
+        let transcript = comic.transcript ? comic.transcript.toLowerCase() : ''
+        transcript = transcript.replace(/\s*\n\s*/g, ' ')
+        
+        let excerpt = ''
+        const index = transcript.indexOf(term)
+        const start = Math.max(0, index - 25)
+        const end = Math.min(transcript.length, index + term.length + 25)
+        excerpt = transcript.slice(start, end)
+        if (start > 0) excerpt = '...' + excerpt
+        if (end < transcript.length) excerpt += '...'
+        
+        results.push({
+          date,
+          comic,
+          excerpt
+        })
+      })
+      
+      // Sort results by date (newest first)
+      results.sort((a, b) => b.date.localeCompare(a.date))
+      
+      setSearchResults(results)
     }
-
-    setSearchResults(results)
-  }, [debouncedSearchTerm, comicsData])
+  }, [debouncedSearchTerm, comicsIndex, comicsData, loadYearData])
 
   // Navigation function
-  const navigateTo = useCallback((action, date) => {
-    if (!comicsData) return
+  const navigateTo = useCallback(async (action, date) => {
+    if (!comicsIndex) return
 
-    const dates = Object.keys(comicsData).sort()
+    const dates = comicsIndex.dates.map(item => item.date).sort()
     const currentIndex = dates.indexOf(date)
     let newIndex
 
@@ -168,14 +411,32 @@ function App() {
     }
 
     const newDate = dates[newIndex]
+    const newYear = newDate.split('-')[0]
+    
+    // Load year if needed
+    if (!comicsData[newYear]) {
+      setLoadingStage('year')
+      setLoadingYear(newYear)
+      try {
+        await loadYearData(newYear)
+      } catch (error) {
+        console.error('Error loading year for navigation:', error)
+        setError(error.message)
+        return
+      } finally {
+        setLoadingStage(null)
+        setLoadingYear(null)
+      }
+    }
+    
     setCurrentDate(newDate)
     window.history.pushState({}, '', `?date=${newDate}`)
-  }, [comicsData])
+  }, [comicsIndex, comicsData, loadYearData])
 
   // Keyboard navigation
   useEffect(() => {
     const handleKeyDown = (event) => {
-      if (!comicsData || !currentDate) return
+      if (!comicsIndex || !currentDate) return
 
       if (event.key === 'ArrowLeft') {
         navigateTo('previous', currentDate)
@@ -186,37 +447,100 @@ function App() {
 
     window.addEventListener('keydown', handleKeyDown)
     return () => window.removeEventListener('keydown', handleKeyDown)
-  }, [comicsData, currentDate, navigateTo])
+  }, [comicsIndex, currentDate, navigateTo])
 
   // Handle date selection from date picker
-  const handleDateSelect = (date) => {
-    if (comicsData && comicsData[date]) {
-      setCurrentDate(date)
-      window.history.pushState({}, '', `?date=${date}`)
-    } else {
+  const handleDateSelect = async (date) => {
+    if (!comicsIndex) return
+    
+    const year = date.split('-')[0]
+    
+    // Check if date exists in index
+    const dateExists = comicsIndex.dates.some(item => item.date === date)
+    if (!dateExists) {
       alert('No comic available for the selected date.')
+      return
     }
+    
+    // Load year if needed
+    if (!comicsData[year]) {
+      setLoadingStage('year')
+      setLoadingYear(year)
+      try {
+        await loadYearData(year)
+      } catch (error) {
+        console.error('Error loading year for date select:', error)
+        setError(error.message)
+        return
+      } finally {
+        setLoadingStage(null)
+        setLoadingYear(null)
+      }
+    }
+    
+    setCurrentDate(date)
+    window.history.pushState({}, '', `?date=${date}`)
   }
 
   // Handle search result click
-  const handleResultClick = (date) => {
+  const handleResultClick = async (date) => {
+    const year = date.split('-')[0]
+    
+    // Load year if needed
+    if (!comicsData[year]) {
+      setLoadingStage('year')
+      setLoadingYear(year)
+      try {
+        await loadYearData(year)
+      } catch (error) {
+        console.error('Error loading year for result click:', error)
+        setError(error.message)
+        return
+      } finally {
+        setLoadingStage(null)
+        setLoadingYear(null)
+      }
+    }
+    
     setCurrentDate(date)
     setSearchTerm('')
     window.history.pushState({}, '', `?date=${date}`)
   }
 
+  // Get current comic data
+  const getCurrentComic = () => {
+    if (!currentDate) return null
+    const year = currentDate.split('-')[0]
+    return comicsData[year]?.[currentDate] || null
+  }
+
+  // Get all dates for navigation (from index)
+  const getAllDates = () => {
+    if (!comicsIndex) return []
+    return comicsIndex.dates.map(item => item.date).sort()
+  }
+
   if (loading) {
+    let loadingMessage = 'Loading comics data...'
+    if (loadingStage === 'index') {
+      loadingMessage = 'Loading index...'
+    } else if (loadingStage === 'year' && loadingYear) {
+      loadingMessage = `Loading comics data for ${loadingYear}...`
+    } else if (loadingStage === 'search') {
+      loadingMessage = 'Searching comics...'
+    }
+
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-50 to-indigo-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="text-center">
           <div className="inline-block animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
-          <p className="text-xl text-gray-700 dark:text-gray-300 font-medium">Loading comics data...</p>
+          <p className="text-xl text-gray-700 dark:text-gray-300 font-medium">{loadingMessage}</p>
         </div>
       </div>
     )
   }
 
-  if (!comicsData && !loading) {
+  if (!comicsIndex && !loading) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-red-50 to-pink-100 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900">
         <div className="text-center max-w-md mx-auto p-6 bg-white dark:bg-gray-800 rounded-lg shadow-lg border border-gray-200 dark:border-gray-700">
@@ -226,12 +550,15 @@ function App() {
             <p className="text-sm text-gray-600 dark:text-gray-400 mb-4">Error: {error}</p>
           )}
           <p className="text-sm text-gray-600 dark:text-gray-400">
-            Make sure the dev server is running and the JSON file is in the public directory.
+            Make sure the dev server is running and the JSON files are in the public directory.
           </p>
         </div>
       </div>
     )
   }
+
+  const currentComic = getCurrentComic()
+  const allDates = getAllDates()
 
   return (
     <div className="min-h-screen bg-gradient-to-br from-slate-50 via-blue-50 to-indigo-50 dark:from-gray-900 dark:via-gray-800 dark:to-gray-900 transition-colors duration-200 pb-12">
@@ -266,15 +593,16 @@ function App() {
       </header>
       
       <main role="main" className="w-full px-4 py-6">
-        {currentDate ? (
+        {currentDate && currentComic ? (
           <div className="flex flex-col lg:flex-row gap-6 w-full">
             {/* Left column - Comic (70%) */}
             <div className="w-full lg:flex-[7] min-w-0">
               <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4 md:p-6 sticky top-6">
                 <ComicDisplay 
                   date={currentDate}
-                  comic={comicsData[currentDate]}
+                  comic={currentComic}
                   comicsData={comicsData}
+                  comicsIndex={comicsIndex}
                   useLocalImages={useLocalImages}
                 />
               </div>
@@ -312,20 +640,32 @@ function App() {
 
               {searchTerm ? (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
-                  <SearchResults 
-                    results={searchResults}
-                    onResultClick={handleResultClick}
-                  />
+                  {loadingStage === 'search' ? (
+                    <div className="text-center py-8">
+                      <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400 mb-2"></div>
+                      <p className="text-sm text-gray-600 dark:text-gray-400">Searching...</p>
+                    </div>
+                  ) : (
+                    <SearchResults 
+                      results={searchResults}
+                      onResultClick={handleResultClick}
+                    />
+                  )}
                 </div>
               ) : (
                 <div className="bg-white dark:bg-gray-800 rounded-xl shadow-lg border border-gray-200 dark:border-gray-700 p-4">
                   <TranscriptPanel
                     date={currentDate}
-                    comic={comicsData[currentDate]}
+                    comic={currentComic}
                   />
                 </div>
               )}
             </div>
+          </div>
+        ) : currentDate ? (
+          <div className="text-center py-12">
+            <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 dark:border-blue-400 mb-4"></div>
+            <p className="text-gray-600 dark:text-gray-400">Loading comic data...</p>
           </div>
         ) : null}
       </main>
@@ -359,4 +699,3 @@ function App() {
 }
 
 export default App
-

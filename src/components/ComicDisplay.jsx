@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 
-function ComicDisplay({ date, comic, comicsData, useLocalImages }) {
+function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages }) {
   const [showTranscript, setShowTranscript] = useState(false)
   const formatDateString = (dateString) => {
     const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
@@ -24,29 +24,34 @@ function ComicDisplay({ date, comic, comicsData, useLocalImages }) {
 
   // Preload adjacent images
   useEffect(() => {
-    if (!comic || !comicsData) return
+    if (!comic || !comicsIndex) return
 
-    const dates = Object.keys(comicsData).sort()
+    // Get all dates from index
+    const dates = comicsIndex.dates.map(item => item.date).sort()
     const currentIndex = dates.indexOf(date)
     const previousIndex = currentIndex > 0 ? currentIndex - 1 : null
     const nextIndex = currentIndex < dates.length - 1 ? currentIndex + 1 : null
 
     if (previousIndex !== null) {
-      const previousComic = comicsData[dates[previousIndex]]
+      const prevDate = dates[previousIndex]
+      const prevYear = prevDate.split('-')[0]
+      const previousComic = comicsData[prevYear]?.[prevDate]
       if (previousComic) {
         const img = new Image()
-        img.src = getImageSrc(previousComic, dates[previousIndex])
+        img.src = getImageSrc(previousComic, prevDate)
       }
     }
 
     if (nextIndex !== null) {
-      const nextComic = comicsData[dates[nextIndex]]
+      const nextDate = dates[nextIndex]
+      const nextYear = nextDate.split('-')[0]
+      const nextComic = comicsData[nextYear]?.[nextDate]
       if (nextComic) {
         const img = new Image()
-        img.src = getImageSrc(nextComic, dates[nextIndex])
+        img.src = getImageSrc(nextComic, nextDate)
       }
     }
-  }, [date, comic, comicsData, getImageSrc])
+  }, [date, comic, comicsData, comicsIndex, getImageSrc])
 
   if (!comic) {
     return (
