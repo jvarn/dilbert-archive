@@ -14,14 +14,20 @@ function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages }) 
   const getImageSrc = useCallback((comicData, comicDate) => {
     if (!comicData) return ''
     
-    if (useLocalImages && comicData.image) {
-      // Extract year from date (YYYY-MM-DD format)
-      const year = comicDate.split('-')[0]
-      // Use Vite's base URL to support flexible deployment paths
-      const baseUrl = import.meta.env.BASE_URL
-      return `${baseUrl}images/${year}/${comicData.image}`
+    if (useLocalImages) {
+      // When local images are enabled, only use local images
+      if (comicData.image) {
+        // Extract year from date (YYYY-MM-DD format)
+        const year = comicDate.split('-')[0]
+        // Use Vite's base URL to support flexible deployment paths
+        const baseUrl = import.meta.env.BASE_URL
+        return `${baseUrl}images/${year}/${comicData.image}`
+      }
+      // If no local image available, return empty string (will trigger error state)
+      return ''
     }
     
+    // When local images are disabled, use archive.org URL
     return comicData.originalimageurl || ''
   }, [useLocalImages])
 
@@ -90,57 +96,88 @@ function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages }) 
       
       <div>
         <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 md:p-4 border border-gray-200 dark:border-gray-700">
-          {imageError && isArchiveOrgError ? (
-            <div className="text-center py-12 px-4">
-              <div className="inline-block mb-4">
-                <svg className="w-12 h-12 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                </svg>
-              </div>
-              <p className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
-                Image unavailable
-              </p>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Sorry, archive.org appears to be down. The image cannot be loaded at this time.
-              </p>
-            </div>
-          ) : imageError ? (
-            <div className="text-center py-12 px-4">
-              <div className="inline-block mb-4">
-                <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                </svg>
-              </div>
-              <p className="text-sm text-gray-600 dark:text-gray-400">
-                Image could not be loaded
-              </p>
-            </div>
-          ) : (
-            <img
-              src={getImageSrc(comic, date)}
-              alt={comic.title || 'Dilbert comic'}
-              className="max-w-full h-auto block mx-auto rounded-lg shadow-sm"
-              onError={(e) => {
-                const imageSrc = getImageSrc(comic, date)
-                const isArchiveOrg = imageSrc.includes('archive.org') || imageSrc.includes('web.archive.org')
-                
-                if (isArchiveOrg) {
-                  setImageError(true)
-                  setIsArchiveOrgError(true)
-                } else if (useLocalImages && comic.originalimageurl) {
-                  // Fallback to original URL if local image fails to load
-                  e.target.src = comic.originalimageurl
-                } else {
-                  setImageError(true)
-                }
-              }}
-              onLoad={() => {
-                // Reset error state when image loads successfully
-                setImageError(false)
-                setIsArchiveOrgError(false)
-              }}
-            />
-          )}
+          {(() => {
+            const imageSrc = getImageSrc(comic, date)
+            const hasImageSrc = imageSrc && imageSrc.trim() !== ''
+            
+            if (!hasImageSrc && useLocalImages) {
+              // Local images enabled but no image available
+              return (
+                <div className="text-center py-12 px-4">
+                  <div className="inline-block mb-4">
+                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Local image not available for this comic
+                  </p>
+                </div>
+              )
+            }
+            
+            if (imageError && isArchiveOrgError) {
+              return (
+                <div className="text-center py-12 px-4">
+                  <div className="inline-block mb-4">
+                    <svg className="w-12 h-12 text-red-500 dark:text-red-400" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <p className="text-lg font-semibold text-gray-800 dark:text-gray-200 mb-2">
+                    Image unavailable
+                  </p>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Sorry, archive.org appears to be down. The image cannot be loaded at this time.
+                  </p>
+                </div>
+              )
+            }
+            
+            if (imageError) {
+              return (
+                <div className="text-center py-12 px-4">
+                  <div className="inline-block mb-4">
+                    <svg className="w-12 h-12 text-gray-400 dark:text-gray-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                    </svg>
+                  </div>
+                  <p className="text-sm text-gray-600 dark:text-gray-400">
+                    Image could not be loaded
+                  </p>
+                </div>
+              )
+            }
+            
+            return (
+              <img
+                src={imageSrc}
+                alt={comic.title || 'Dilbert comic'}
+                className="max-w-full h-auto block mx-auto rounded-lg shadow-sm"
+                onError={(e) => {
+                  const currentSrc = getImageSrc(comic, date)
+                  const isArchiveOrg = currentSrc.includes('archive.org') || currentSrc.includes('web.archive.org')
+                  
+                  if (isArchiveOrg) {
+                    // Archive.org image failed
+                    setImageError(true)
+                    setIsArchiveOrgError(true)
+                  } else if (useLocalImages) {
+                    // Local image failed - don't fall back to archive.org, just show error
+                    setImageError(true)
+                  } else {
+                    // Generic error
+                    setImageError(true)
+                  }
+                }}
+                onLoad={() => {
+                  // Reset error state when image loads successfully
+                  setImageError(false)
+                  setIsArchiveOrgError(false)
+                }}
+              />
+            )
+          })()}
         </div>
       </div>
     </section>
