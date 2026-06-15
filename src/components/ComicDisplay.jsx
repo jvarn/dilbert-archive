@@ -1,6 +1,6 @@
 import { useEffect, useCallback, useState } from 'react'
 
-function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages, useArchivedUrls}) {
+function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages, useArchivedUrls, favorites,setFavorites }) {
   const [showTranscript, setShowTranscript] = useState(false)
   const [imageError, setImageError] = useState(false)
   const [isArchiveOrgError, setIsArchiveOrgError] = useState(false)
@@ -35,6 +35,7 @@ function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages, us
     }
     
     // When local images are disabled, use archive.org URL
+    // return comicData.originalimageurl || ''
     return comicData.originalimageurl || ''
   }, [useLocalImages,useArchivedUrls])
 
@@ -87,19 +88,42 @@ function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages, us
 
   return (
     <section aria-labelledby={`comic-${date}`}>
-      <div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
-        <h2 id={`comic-${date}`} className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100 mb-2">
-          {h2Content}
-        </h2>
-        <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-gray-400">
-          <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
-          </svg>
-          <time dateTime={date} className="font-medium">
-            {formatDateString(date)}
-          </time>
-        </div>
-      </div>
+<div className="mb-4 pb-4 border-b border-gray-200 dark:border-gray-700">
+  <div className="flex items-start justify-between gap-3 mb-2">
+    <h2 id={`comic-${date}`} className="text-xl md:text-2xl font-bold text-gray-800 dark:text-gray-100 min-w-0">
+      {h2Content}
+    </h2>
+
+    <button
+      type="button"
+      onClick={() => {
+        const updatedFavorites = favorites.includes(date)
+          ? favorites.filter((favoriteDate) => favoriteDate !== date)
+          : [...favorites, date]
+
+        setFavorites(updatedFavorites.sort())
+        console.log('update')
+        localStorage.setItem('favorites', JSON.stringify(updatedFavorites))
+      }}
+      className="flex-shrink-0 p-1 rounded-md hover:bg-gray-100 dark:hover:bg-gray-800 transition-colors"
+      aria-label={favorites.includes(date) ? 'Remove from favorites' : 'Add to favorites'}
+      title={favorites.includes(date) ? 'Remove from favorites' : 'Add to favorites'}
+    >
+    <svg className="w-5 h-5 text-blue-600 dark:text-blue-400" fill={favorites.includes(date) ? "currentColor": "none"} stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="butt" strokeLinejoin="miter" strokeWidth={2} d="M12 3l2.9 6.26L22 9.27l-5 4.87L18.8 21 12 17.77 5.2 21 7 14.14 2 9.27l7.1-.01L12 3z"/>
+    </svg>
+    </button>
+  </div>
+
+  <div className="flex items-center gap-2 text-xs md:text-sm text-gray-600 dark:text-gray-400">
+    <svg className="w-3 h-3 md:w-4 md:h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 7V3m8 4V3m-9 8h10M5 21h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v12a2 2 0 002 2z" />
+    </svg>
+    <time dateTime={date} className="font-medium">
+      {formatDateString(date)}
+    </time>
+  </div>
+</div>
       
       <div>
         <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-2 md:p-4 border border-gray-200 dark:border-gray-700">
