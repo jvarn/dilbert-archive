@@ -6,7 +6,7 @@ function ComicDisplay({ date, comic, comicsData, comicsIndex, useLocalImages, us
   const [isArchiveOrgError, setIsArchiveOrgError] = useState(false)
   
   const formatDateString = (dateString) => {
-    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' }
+    const options = { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric', timeZone: 'UTC' }
     return new Date(dateString).toLocaleDateString('en-UK', options)
   }
 

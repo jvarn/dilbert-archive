@@ -2,22 +2,34 @@ import { useState, useEffect } from 'react'
 import DatePickerLib from 'react-datepicker'
 import 'react-datepicker/dist/react-datepicker.css'
 
+const parseLocalDate = (dateString) => {
+  const [year, month, day] = dateString.split('-').map(Number)
+  return new Date(year, month - 1, day) // local midnight, not UTC
+}
+
+const formatLocalDate = (date) => {
+  const year = date.getFullYear()
+  const month = String(date.getMonth() + 1).padStart(2, '0')
+  const day = String(date.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
+
 function DatePicker({ value, onChange, minDate, maxDate }) {
   const [selectedDate, setSelectedDate] = useState(
-    value ? new Date(value) : null
+    value ? parseLocalDate(value) : null
   )
 
   // Update selectedDate when value prop changes
   useEffect(() => {
     if (value) {
-      setSelectedDate(new Date(value))
+      setSelectedDate(parseLocalDate(value))
     }
   }, [value])
 
   const handleDateChange = (date) => {
     setSelectedDate(date)
     if (date) {
-      const formattedDate = date.toISOString().split('T')[0]
+      const formattedDate = formatLocalDate(date) 
       onChange(formattedDate)
     }
   }
@@ -33,8 +45,8 @@ function DatePicker({ value, onChange, minDate, maxDate }) {
         selected={selectedDate}
         onChange={handleDateChange}
         dateFormat="yyyy-MM-dd"
-        minDate={new Date(minDate)}
-        maxDate={new Date(maxDate)}
+        minDate={parseLocalDate(minDate)}
+        maxDate={parseLocalDate(maxDate)}
         className="w-full pl-10 pr-4 py-3 border border-gray-300 dark:border-gray-600 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500 dark:focus:ring-blue-400 focus:border-transparent bg-gray-50 dark:bg-gray-700 focus:bg-white dark:focus:bg-gray-700 text-gray-900 dark:text-gray-100 placeholder-gray-500 dark:placeholder-gray-400 transition-colors"
         placeholderText="Select a date"
       />

@@ -71,13 +71,18 @@
   background-color: #2563eb;
 }
 
-.react-datepicker__day:hover {
+.react-datepicker__day:not(.react-datepicker__day--disabled):hover {
   border-radius: 0.375rem;
   background-color: #dbeafe;
 }
 
-.dark .react-datepicker__day:hover {
+.dark .react-datepicker__day:not(.react-datepicker__day--disabled):hover {
   background-color: #1e40af;
+}
+
+.react-datepicker__day--disabled:hover {
+  background-color: transparent;
+  cursor: default;
 }
 
 .react-datepicker__day--today {
